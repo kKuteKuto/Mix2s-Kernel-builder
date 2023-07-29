@@ -1,7 +1,7 @@
 [
   {
     "kernelSource": {
-      "name": "Kernel-PixelExperience",
+      "name": "KernelSU-PixelExperience",
       "repo": "https://github.com/PixelExperience-Devices/kernel_xiaomi_polaris",
       "branch": "thirteen",
       "device": "polaris",

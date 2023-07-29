@@ -1,7 +1,7 @@
 [
   {
     "kernelSource": {
-      "name": "Polaris-KernelSU-PixelExperience",
+      "name": "Kernel-PixelExperience",
       "repo": "https://github.com/PixelExperience-Devices/kernel_xiaomi_polaris",
       "branch": "thirteen",
       "device": "polaris",
@@ -45,13 +45,13 @@
   },
   {
     "kernelSource": {
-      "name": "Polaris-LineageOS",
+      "name": "KernelSU-LineageOS",
       "repo": "https://github.com/LineageOS/android_kernel_xiaomi_sdm845",
       "branch": "lineage-20",
       "device": "thyme",
       "defconfig": "sdm845-perf_defconfig"
     },
-    "withKernelSU": false,
+    "withKernelSU": true,
     "toolchains": [
       {
         "repo": "https://android.googlesource.com/platform/prebuilts/gas/linux-x86",

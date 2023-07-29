@@ -39,8 +39,8 @@
     "AnyKernel3": {
       "use": true,
       "release": true,
-      "repo": "https://github.com/osm0sis/AnyKernel3",
-      "branch": "master"
+      "repo": "https://github.com/Shuery-Shuai/AnyKernel3",
+      "branch": "polaris"
     }
   },
   {
@@ -48,7 +48,7 @@
       "name": "KernelSU-LineageOS",
       "repo": "https://github.com/LineageOS/android_kernel_xiaomi_sdm845",
       "branch": "lineage-20",
-      "device": "thyme",
+      "device": "polaris",
       "defconfig": "sdm845-perf_defconfig"
     },
     "withKernelSU": true,
@@ -80,8 +80,8 @@
     "AnyKernel3": {
       "use": true,
       "release": true,
-      "repo": "https://github.com/osm0sis/AnyKernel3",
-      "branch": "master"
+      "repo": "https://github.com/Shuery-Shuai/AnyKernel3",
+      "branch": "polaris"
     }
   }
 ]

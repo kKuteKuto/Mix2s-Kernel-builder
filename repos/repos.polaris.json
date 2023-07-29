@@ -47,7 +47,7 @@
     "kernelSource": {
       "name": "Polaris-LineageOS",
       "repo": "https://github.com/LineageOS/android_kernel_xiaomi_sdm845",
-      "branch": "lineage-20.0",
+      "branch": "lineage-20",
       "device": "thyme",
       "defconfig": "sdm845-perf_defconfig"
     },

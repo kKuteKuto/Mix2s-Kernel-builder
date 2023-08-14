@@ -1,7 +1,7 @@
 [
   {
     "kernelSource": {
-      "name": "KernelSU-PixelExperience",
+      "name": "PixelExperience-KernelSU",
       "repo": "https://github.com/PixelExperience-Devices/kernel_xiaomi_polaris",
       "branch": "thirteen",
       "device": "polaris",
@@ -45,7 +45,7 @@
   },
   {
     "kernelSource": {
-      "name": "KernelSU-LineageOS",
+      "name": "LineageOS-KernelSU",
       "repo": "https://github.com/LineageOS/android_kernel_xiaomi_sdm845",
       "branch": "lineage-20",
       "device": "polaris",

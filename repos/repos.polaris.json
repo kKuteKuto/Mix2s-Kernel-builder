@@ -14,6 +14,12 @@
         "branch": "master",
         "name": "prelude-clang",
         "binPath": ["bin"]
+      },
+      {
+        "repo": "https://github.com/PixelExperience/prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9",
+        "branch": "thirteen",
+        "name": "gcc",
+        "binPath": ["bin"]
       }
     ],
     "ccache": true,
@@ -21,19 +27,9 @@
       "ARCH": "arm64",
       "CC": "prelude-clang/bin/clang",
       "externalCommand": {
-        "CROSS_COMPILE": "prelude-clang/bin/aarch64-linux-gnu-",
-        "CROSS_COMPILE_ARM32": "prelude-clang/bin/arm-linux-gnueabi-",
-        "LD": "prelude-clang/bin/ld.lld",
-        "AR": "prelude-clang/bin/llvm-ar",
-        "NM": "prelude-clang/bin/llvm-nm",
-        "OBJCOPY": "prelude-clang/bin/llvm-objcopy",
-        "OBJDUMP": "prelude-clang/bin/llvm-objdump",
-        "READELF": "prelude-clang/bin/llvm-readelf",
-        "OBJSIZE": "prelude-clang/bin/llvm-size",
-        "STRIP": "prelude-clang/bin/llvm-strip",
-        "LDGOLD": "prelude-clang/bin/aarch64-linux-gnu-ld.gold",
-        "LLVM_AR": "prelude-clang/bin/llvm-ar",
-        "LLVM_DIS": "prelude-clang/bin/llvm-dis"
+        "CLANG_TRIPLE": "prelude-clang/bin/aarch64-linux-gnu-",
+        "CROSS_COMPILE": "gcc/bin/aarch64-linux-androidkernel-",
+        "LINUX_GCC_CROSS_COMPILE_PREBUILTS_BIN": "gcc/bin"
       }
     },
     "AnyKernel3": {
@@ -61,7 +57,7 @@
       },
       {
         "repo": "https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9",
-        "branch": "lineage-19",
+        "branch": "lineage-19.1",
         "name": "gcc",
         "binPath": ["bin"]
       }
@@ -72,9 +68,8 @@
       "CC": "clang/bin/clang",
       "externalCommand": {
         "CLANG_TRIPLE": "gcc/bin/aarch64-linux-gnu-",
-        "CROSS_COMPILE": "gcc/bin/aarch64-androidkernel-",
-        "CROSS_COMPILE_ARM32": "clang/bin/arm-linux-gnueabi-",
-        "LINUX_GCC_CROSS_COMPILE_PREBUILTS_BIN" :"gcc/aarch64-linux-android-4.9/bin"
+        "CROSS_COMPILE": "gcc/bin/aarch64-linux-androidkernel-",
+        "LINUX_GCC_CROSS_COMPILE_PREBUILTS_BIN" :"gcc/bin"
       }
     },
     "AnyKernel3": {

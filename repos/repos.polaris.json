@@ -49,7 +49,7 @@
       "repo": "https://github.com/LineageOS/android_kernel_xiaomi_sdm845",
       "branch": "lineage-20",
       "device": "polaris",
-      "defconfig": "vender/xiaomi/mi845_defconfig"
+      "defconfig": "vendor/xiaomi/mi845_defconfig"
     },
     "withKernelSU": true,
     "toolchains": [

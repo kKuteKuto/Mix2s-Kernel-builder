@@ -54,17 +54,17 @@
     "withKernelSU": true,
     "toolchains": [
       {
-        "uri": "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r498229b.tar.gz",
+        "url": "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r498229b.tar.gz",
         "name": "clang",
         "binPath": ["bin"]
       },
       {
-        "uri": "https://android-review.linaro.org/plugins/gitiles/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-7.2/+archive/refs/heads/master.tar.gz",
+        "url": "https://android-review.linaro.org/plugins/gitiles/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-7.2/+archive/refs/heads/master.tar.gz",
         "name": "gcc-64",
         "binPath": ["bin"]
       },
       {
-        "uri": "https://android-review.linaro.org/plugins/gitiles/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-7.2/+archive/refs/heads/master.tar.gz",
+        "url": "https://android-review.linaro.org/plugins/gitiles/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-7.2/+archive/refs/heads/master.tar.gz",
         "name": "gcc-32",
         "binPath": ["bin"]
       }

@@ -86,6 +86,9 @@
         "OBJSIZE": "llvm-size",
         "STRIP": "llvm-strip",
         "LDGOLD": "aarch64-linux-gnu-ld.gold",
+        "LLVM": "1",
+        "LLVM_IAS": "1",
+        "LLVM": "-14",
         "LLVM_AR": "llvm-ar",
         "LLVM_DIS": "llvm-dis"
       }

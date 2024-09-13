@@ -1,7 +1,7 @@
 [
   {
     "kernelSource": {
-      "name": "polaris-EtudeKernel-KernelSU",
+      "name": "EtudeKernel-KernelSU",
       "repo": "https://github.com/PixelExperience-Devices/kernel_xiaomi_polaris",
       "branch": "thirteen",
       "device": "polaris",
@@ -45,11 +45,11 @@
   },
   {
     "kernelSource": {
-      "name": "polaris-LineageKernel-KernelSU",
+      "name": "LineageKernel-KernelSU",
       "repo": "https://github.com/LineageOS/android_kernel_xiaomi_sdm845",
       "branch": "lineage-21",
       "device": "polaris",
-      "defconfig": "vendor/xiaomi/mi845_defconfig"
+      "defconfig": "vendor/xiaomi/polaris.config"
     },
     "withKernelSU": true,
     "toolchains": [

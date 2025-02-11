@@ -70,7 +70,7 @@ jobs:
 
       - name: "Cache ccache files"
         if: ${{ env.ccache == 'true' }}
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.ccache
@@ -94,6 +94,13 @@ jobs:
           git clone --recursive --depth=1 -j $(nproc) --branch $KERNEL_BRANCH $KERNEL_REPO $KERNEL_NAME
 
           echo "Clone kernel source => ($KERNEL_REPO)"
+
+      - name: "Patching KernelSu-Susfs"
+        run: |
+          patch -p1 < ./KernelSu/10_enable_susfs_for_ksu.patch
+          patch -p1 < 50_add_susfs_in_kernel.patch
+
+          echo "Patching KernelSu-Susfs => ($KERNEL_REPO)"
 
       - name: "Get toolchains"
         env:

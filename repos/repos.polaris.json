@@ -2,7 +2,7 @@
   {
     "kernelSource": {
       "name": "EtudeKernel-KernelSU",
-      "repo": "https://github.com/PixelExperience-Devices/kernel_xiaomi_polaris",
+      "repo": "https://github.com/kKuteKuto/kernel_PE2S",
       "branch": "thirteen",
       "device": "polaris",
       "defconfig": "polaris_defconfig"

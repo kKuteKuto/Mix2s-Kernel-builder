@@ -70,7 +70,7 @@ jobs:
 
       - name: "Cache ccache files"
         if: ${{ env.ccache == 'true' }}
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.ccache
@@ -97,8 +97,8 @@ jobs:
 
       - name: "Patching KernelSu-Susfs"
         run: |
-          patch -p1 < ./KernelSu/10_enable_susfs_for_ksu.patch
-          patch -p1 < 50_add_susfs_in_kernel.patch
+          patch -p1 < $WORKSPACE/KernelSu/10_enable_susfs_for_ksu.patch
+          patch -p1 < $WORKSPACE/50_add_susfs_in_kernel.patch
 
           echo "Patching KernelSu-Susfs => ($KERNEL_REPO)"
 

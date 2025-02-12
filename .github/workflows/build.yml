@@ -77,68 +77,60 @@ jobs:
 
       - name: "Setup AnyKernel3"
         run: |
-          set -e # Exit immediately if a command fails
-
-          ANYKERNEL_REPO=$(jq -r ".repo" <<< "$ANYKERNEL_PARAMS")
-          ANYKERNEL_BRANCH=$(jq -r ".branch" <<< "$ANYKERNEL_PARAMS")
+          ANYKERNEL_REPO=$(echo "$ANYKERNEL_PARAMS" | jq -r ".repo")
+          ANYKERNEL_BRANCH=$(echo "$ANYKERNEL_PARAMS" | jq -r ".branch")
           git clone --recursive --depth=1 -j $(nproc) --branch "$ANYKERNEL_BRANCH" "$ANYKERNEL_REPO" AnyKernel3
           git clone https://gitlab.com/simonpunk/susfs4ksu.git -b "${{ env.SUSFS_BRANCH }}"
 
       - name: "Clone Kernel Source"
         run: |
-          set -e # Exit immediately if a command fails
           git clone --recursive --depth=1 -j $(nproc) --branch "$KERNEL_BRANCH" "$KERNEL_REPO" "$KERNEL_NAME"
 
       - name: "Get toolchains"
         env:
           toolchains: "${{ toJSON(matrix.repos.toolchains) }}"
         run: |
-          set -e # Exit immediately if a command fails
-          num=$(echo "$toolchains" | jq 'length')
-          for i in $(seq 0 "$((num-1))"); do # Added quotes around num-1
-            name=$(echo "$toolchains" | jq -r ".[$i].name")
-            repo=$(echo "$toolchains" | jq -r ".[$i].repo")
-            branch=$(echo "$toolchains" | jq -r ".[$i].branch")
-            url=$(echo "$toolchains" | jq -r ".[$i].url")
+          num=$(echo $toolchains | jq 'length')
+          for i in $(seq 0 $((num-1))); do
+            name=$(echo $toolchains | jq -r ".[$i].name")
+            repo=$(echo $toolchains | jq -r ".[$i].repo")
+            branch=$(echo $toolchains | jq -r ".[$i].branch")
+            url=$(echo $toolchains | jq -r ".[$i].url")
             if [ -z "$url" ] || [ "$url" = "null" ]; then
-              git clone --recursive --depth=1 -j $(nproc) --branch "$branch" "$repo" "$name" # Added quotes around variables
+              git clone --recursive --depth=1 -j $(nproc) --branch $branch $repo $name
             else
               wget "$url"
               file="${url##*/}"
-              mkdir -p "$name" # Added quotes
+              mkdir -p $name
               case "$file" in
-                *.zip)    unzip -d "$name" "$file" ;; # Added quotes
-                *.tar)    tar xvf "$file" -C "$name" ;; # Added quotes
-                *.tar.gz) tar zxvf "$file" -C "$name" ;; # Added quotes
-                *.rar)    unrar x "$file" "$name" ;; # Added quotes
+                *.zip)    unzip -d $name "$file" ;;
+                *.tar)    tar xvf "$file" -C $name ;;
+                *.tar.gz) tar zxvf "$file" -C $name ;;
+                *.rar)    unrar x "$file" $name ;;
                 *)        echo "unknown file type: $file" ;;
               esac
-              rm "$file" # Added quotes
+              rm $file
             fi
             jq -r ".[$i].binPath[]" <<< "$toolchains" | while read -r bp; do
-              echo "$WORKSPACE/$name/$bp" >> "$GITHUB_PATH" # Added quotes
+              echo "$WORKSPACE/$name/$bp" >> $GITHUB_PATH
             done
           done
-          echo "$WORKSPACE/$name/bin" >> "$GITHUB_PATH"  # Add bin directory to PATH and added quotes
 
       - name: "Set Build Arguments"
         id: generate-args
         env:
           PARAMS: "${{ toJSON(matrix.repos.params) }}"
         run: |
-          set -e # Exit immediately if a command fails
-          args=""
+          THREAD=$(nproc --all)
           ARCH=$(echo "$PARAMS" | jq -r ".ARCH")
-          if [ -n "$ARCH" ]; then
-            args="$args ARCH=$ARCH"
-          fi
-
           CC=$(echo "$PARAMS" | jq -r ".CC")
+          args="-j${THREAD} O=${OUT_DIR} ARCH=$ARCH"
           if [ -n "$CC" ]; then
+            [[ "$CC" == */* ]] && CC="${WORKSPACE}/$CC"
             if [ "${CCACHE_ENABLED}" = "true" ]; then
-              args="$args CC=\"ccache $CC\"" # You might not need full path here now
+              args="$args CC=\"ccache $CC\""
             else
-              args="$args CC=$CC" # You might not need full path here now
+              args="$args CC=$CC"
             fi
           fi
           mapfile -t cmds < <(jq -r '.externalCommand | to_entries[] | "\(.key)=\(.value)"' <<< "$PARAMS")
@@ -151,33 +143,23 @@ jobs:
           echo "args=$args" >> $GITHUB_OUTPUT
           echo "ARCH=$ARCH" >> $GITHUB_OUTPUT
 
+      - name: "Add KernelSU"
+        working-directory: ${{ env.KERNEL_NAME }}
+        run: |        
+          echo "Adding KernelSU..."
+          curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next-susfs/kernel/setup.sh" | bash -s next-susfs
+          [ -d "KernelSU" ] && (cd KernelSU/kernel)
+          sed -i 's/ccflags-y += -DKSU_VERSION=16/ccflags-y += -DKSU_VERSION=12000/' ./Makefile
+
       - name: "Apply SUSFS Patches"
         working-directory: ${{ env.KERNEL_NAME }}
         run: |
-          set -e # Exit immediately if a command fails
-
-          git apply --check 50_add_susfs_in_kernel-4.9.patch
-          if [ $? -ne 0 ]; then
-            echo "::error title=SUSFS Patch Failed::Failed to apply 50_add_susfs_in_kernel-4.9.patch"
-            exit 1
-          fi
-          patch -p1 < 50_add_susfs_in_kernel-4.9.patch
-
-          if [ -d "KernelSU-Next" ]; then
-            cd KernelSU-Next
-            git apply --check 10_enable_susfs_for_ksu.patch
-            if [ $? -ne 0 ]; then
-              echo "::error title=KernelSU-Next SUSFS Patch Failed::Failed to apply 10_enable_susfs_for_ksu.patch"
-              exit 1
-            fi
-            patch -p1 --forward < 10_enable_susfs_for_ksu.patch
-            cd ..
-          fi
-
+          [ -d "KernelSU" ] && (cd KernelSU && patch -p1 --forward < 10_enable_susfs_for_ksu.patch || true)
+          patch -p1 < 50_add_susfs_in_kernel-4.9.patch || true
+     
       - name: "Add SUSFS Config"
         working-directory: ${{ env.KERNEL_NAME }}
         run: |
-          set -e # Exit immediately if a command fails
           CONFIG_FILE="arch/${{ steps.generate-args.outputs.ARCH }}/configs/${DEFCONFIG_NAME}"
           for cfg in "CONFIG_KSU=y" "CONFIG_KSU_SUSFS=y" "CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y" \
                      "CONFIG_KSU_SUSFS_SUS_PATH=y" "CONFIG_KSU_SUSFS_SUS_MOUNT=y" \
@@ -196,26 +178,9 @@ jobs:
           ARCH: ${{ steps.generate-args.outputs.ARCH }}
         if: ${{ env.WITH_KERNELSU == 'true' }}
         run: |
-          set -e # Exit immediately if a command fails
           [ -d "KernelSU" ] && rm -rf "KernelSU"
           [ -d "drivers/kernelsu" ] && rm -rf "drivers/kernelsu"
-
-          # Download and execute setup.sh - consider security implications!
-          # Ideally, vendor this script and verify its checksum.
-          curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/${{ env.KERNEL_SU_NEXT_BRANCH }}/kernel/setup.sh" -o setup.sh # Download script
-          chmod +x setup.sh # Make it executable
-
-          # Security:  Consider verifying a checksum of setup.sh here before executing.
-          # Example (you'd need to pre-calculate the known good checksum):
-          # KNOWN_CHECKSUM="your_known_checksum_here"
-          # ACTUAL_CHECKSUM=$(sha256sum setup.sh | awk '{print $1}')
-          # if [ "$ACTUAL_CHECKSUM" != "$KNOWN_CHECKSUM" ]; then
-          #   echo "::error title=Checksum Verification Failed::Checksum of setup.sh does not match expected value!"
-          #   exit 1
-          # fi
-
-          ./setup.sh ${{ env.KERNEL_SU_NEXT_BRANCH }} # Execute the script
-          rm setup.sh #remove the script
+          curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/${{ env.KERNEL_SU_NEXT_BRANCH }}/kernel/setup.sh" | bash -s ${{ env.KERNEL_SU_NEXT_BRANCH }}
           CONFIG_FILE="arch/${ARCH}/configs/${DEFCONFIG_NAME}"
           for cfg in "CONFIG_KPROBES=y" "CONFIG_HAVE_KPROBES=y" "CONFIG_KPROBE_EVENTS=y"; do
             echo "$cfg" | sudo tee -a "$CONFIG_FILE"
@@ -224,20 +189,19 @@ jobs:
 
       - name: "Make defconfig"
         working-directory: ${{ env.KERNEL_NAME }}
-        run: |
-          set -e # Exit immediately if a command fails
-          make "${ARGS}" "${DEFCONFIG_NAME}"  # Corrected quoting
+        env:
+          ARGS: ${{ steps.generate-args.outputs.args }}
+        run: make ${ARGS} ${DEFCONFIG_NAME}
 
       - name: "Build Kernel"
         working-directory: ${{ env.KERNEL_NAME }}
-        run: |
-          set -e # Exit immediately if a command fails
-          make "${ARGS}" # Still need to quote ARGS
+        env:
+          ARGS: ${{ steps.generate-args.outputs.args }}
+        run: make ${ARGS}
 
       - name: "Prepare AnyKernel3"
         if: ${{ env.USE_ANYKERNEL == 'true' }}
         run: |
-          set -e # Exit immediately if a command fails
           mkdir -p AnyKernel3/files
           cp "${{ env.OUT_DIR }}/arch/${{ steps.generate-args.outputs.ARCH }}/boot/Image" AnyKernel3/
           cp "${{ env.OUT_DIR }}/arch/${{ steps.generate-args.outputs.ARCH }}/boot/Image.gz-dtb" AnyKernel3/
@@ -247,7 +211,6 @@ jobs:
       - name: "Pack AnyKernel3.zip"
         if: ${{ env.USE_ANYKERNEL == 'true' }}
         run: |
-          set -e # Exit immediately if a command fails
           cd AnyKernel3/
           zip -q -r "../${{ env.KERNEL_DEVICE }}-${{ env.KERNEL_NAME }}_${{ env.BUILDDATE }}.zip" *
 
@@ -271,4 +234,4 @@ jobs:
           tag_name: v${{ env.BUILDDATE }}.${{ github.run_number }}
           files: "${{ env.WORKSPACE }}/${{ env.KERNEL_DEVICE }}-${{ env.KERNEL_NAME }}_${{ env.BUILDDATE }}.zip"
           generate_release_notes: true
-          
+

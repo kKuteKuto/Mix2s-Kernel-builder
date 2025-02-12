@@ -148,7 +148,7 @@ jobs:
         run: |        
           echo "Adding KernelSU..."
           curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next-susfs/kernel/setup.sh" | bash -s next-susfs
-          [ -d "KernelSu-Next" ] && (cd KernelSu-Next/kernel)
+          [ -d "KernelSu-Next" ] && (cd KernelSu-Next/kernelsu)
           sed -i 's/ccflags-y += -DKSU_VERSION=16/ccflags-y += -DKSU_VERSION=12000/' ./Makefile
 
       - name: "Apply SUSFS Patches"

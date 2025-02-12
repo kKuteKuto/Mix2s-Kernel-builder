@@ -17,7 +17,7 @@ jobs:
       builddate: ${{ steps.generate-builddate.outputs.builddate }}
     steps:
       - name: "Checkout"
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: "Generate Matrix from repos.json"
         id: generate-matrix
@@ -70,7 +70,7 @@ jobs:
 
       - name: "Cache ccache Files"
         if: ${{ env.CCACHE_ENABLED == 'true' }}
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.ccache
@@ -92,6 +92,44 @@ jobs:
         run: |
           git clone --recursive --depth=1 -j $(nproc) --branch "$KERNEL_BRANCH" "$KERNEL_REPO" "$KERNEL_NAME"
           echo "Cloned kernel source from $KERNEL_REPO"
+
+      - name: "Apply SUSFS Patches"
+        working-directory: ${{ env.KERNEL_NAME }}
+        run: |
+          echo "Applying SUSFS patches..."
+          # Assume the patches reside in a subdirectory named "KernelSU-Next" within the kernel source.
+          if [ -d "KernelSU-Next" ]; then
+            cd KernelSU-Next
+            patch -p1 --forward < 10_enable_susfs_for_ksu.patch || true
+            cd ..
+          fi
+          # Apply additional patch (adjust the patch file’s relative path as needed)
+          patch -p1 < 50_add_susfs_in_kernel-4.9.patch || true
+     
+      - name: "Add SUSFS Configuration Settings"
+        working-directory: ${{ env.KERNEL_NAME }}
+        run: |
+          echo "Adding SUSFS configuration settings..."
+          # Use the ARCH value from the previous step (make sure your params provide ARCH)
+          CONFIG_FILE="arch/${{ steps.generate-args.outputs.ARCH }}/configs/${DEFCONFIG_NAME}"
+          echo "CONFIG_KSU=y" | sudo tee -a "$CONFIG_FILE"
+          echo "CONFIG_KSU_SUSFS=y" | sudo tee -a "$CONFIG_FILE"
+          echo "CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y" | sudo tee -a "$CONFIG_FILE"
+          echo "CONFIG_KSU_SUSFS_SUS_PATH=y" | sudo tee -a "$CONFIG_FILE"
+          echo "CONFIG_KSU_SUSFS_SUS_MOUNT=y" | sudo tee -a "$CONFIG_FILE"
+          echo "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y" | sudo tee -a "$CONFIG_FILE"
+          echo "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y" | sudo tee -a "$CONFIG_FILE"
+          echo "CONFIG_KSU_SUSFS_SUS_KSTAT=y" | sudo tee -a "$CONFIG_FILE"
+          echo "CONFIG_KSU_SUSFS_SUS_OVERLAYFS=y" | sudo tee -a "$CONFIG_FILE"
+          echo "CONFIG_KSU_SUSFS_TRY_UMOUNT=y" | sudo tee -a "$CONFIG_FILE"
+          echo "CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT=y" | sudo tee -a "$CONFIG_FILE"
+          echo "CONFIG_KSU_SUSFS_SPOOF_UNAME=y" | sudo tee -a "$CONFIG_FILE"
+          echo "CONFIG_KSU_SUSFS_ENABLE_LOG=y" | sudo tee -a "$CONFIG_FILE"
+          echo "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y" | sudo tee -a "$CONFIG_FILE"
+          echo "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y" | sudo tee -a "$CONFIG_FILE"
+          echo "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y" | sudo tee -a "$CONFIG_FILE"
+          echo "CONFIG_KSU_SUSFS_SUS_SU=y" | sudo tee -a "$CONFIG_FILE"
+          echo "CONFIG_TMPFS_XATTR=y" | sudo tee -a "$CONFIG_FILE"
 
       - name: "Get toolchains"
         env:
@@ -179,44 +217,6 @@ jobs:
           echo "args=$args" >> $GITHUB_OUTPUT
           echo "ARCH=$ARCH" >> $GITHUB_OUTPUT
       
-      - name: "Apply SUSFS Patches"
-        working-directory: ${{ env.KERNEL_NAME }}
-        run: |
-          echo "Applying SUSFS patches..."
-          # Assume the patches reside in a subdirectory named "KernelSU-Next" within the kernel source.
-          if [ -d "KernelSU-Next" ]; then
-            cd KernelSU-Next
-            patch -p1 --forward < 10_enable_susfs_for_ksu.patch || true
-            cd ..
-          fi
-          # Apply additional patch (adjust the patch file’s relative path as needed)
-          patch -p1 < 50_add_susfs_in_kernel-4.9.patch || true
-     
-      - name: "Add SUSFS Configuration Settings"
-        working-directory: ${{ env.KERNEL_NAME }}
-        run: |
-          echo "Adding SUSFS configuration settings..."
-          # Use the ARCH value from the previous step (make sure your params provide ARCH)
-          CONFIG_FILE="arch/${{ steps.generate-args.outputs.ARCH }}/configs/${DEFCONFIG_NAME}"
-          echo "CONFIG_KSU=y" | sudo tee -a "$CONFIG_FILE"
-          echo "CONFIG_KSU_SUSFS=y" | sudo tee -a "$CONFIG_FILE"
-          echo "CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y" | sudo tee -a "$CONFIG_FILE"
-          echo "CONFIG_KSU_SUSFS_SUS_PATH=y" | sudo tee -a "$CONFIG_FILE"
-          echo "CONFIG_KSU_SUSFS_SUS_MOUNT=y" | sudo tee -a "$CONFIG_FILE"
-          echo "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y" | sudo tee -a "$CONFIG_FILE"
-          echo "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y" | sudo tee -a "$CONFIG_FILE"
-          echo "CONFIG_KSU_SUSFS_SUS_KSTAT=y" | sudo tee -a "$CONFIG_FILE"
-          echo "CONFIG_KSU_SUSFS_SUS_OVERLAYFS=y" | sudo tee -a "$CONFIG_FILE"
-          echo "CONFIG_KSU_SUSFS_TRY_UMOUNT=y" | sudo tee -a "$CONFIG_FILE"
-          echo "CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT=y" | sudo tee -a "$CONFIG_FILE"
-          echo "CONFIG_KSU_SUSFS_SPOOF_UNAME=y" | sudo tee -a "$CONFIG_FILE"
-          echo "CONFIG_KSU_SUSFS_ENABLE_LOG=y" | sudo tee -a "$CONFIG_FILE"
-          echo "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y" | sudo tee -a "$CONFIG_FILE"
-          echo "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y" | sudo tee -a "$CONFIG_FILE"
-          echo "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y" | sudo tee -a "$CONFIG_FILE"
-          echo "CONFIG_KSU_SUSFS_SUS_SU=y" | sudo tee -a "$CONFIG_FILE"
-          echo "CONFIG_TMPFS_XATTR=y" | sudo tee -a "$CONFIG_FILE"
-
       - name: "Update KernelSU"
         working-directory: ${{ env.KERNEL_NAME }}
         env:

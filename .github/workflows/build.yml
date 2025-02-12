@@ -142,16 +142,7 @@ jobs:
           done
           echo "args=$args" >> $GITHUB_OUTPUT
           echo "ARCH=$ARCH" >> $GITHUB_OUTPUT
-
-      - name: "Add KernelSU"
-        working-directory: ${{ env.KERNEL_NAME }}
-        run: |        
-          echo "Adding KernelSU..."
-          curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh" | bash -
-          if [ -d "KernelSU" ]; then
-            cd KernelSU/kernel
-          sed -i 's/ccflags-y += -DKSU_VERSION=16/ccflags-y += -DKSU_VERSION=12000/' ./Makefile
-
+          
       - name: "Apply SUSFS Patches"
         working-directory: ${{ env.KERNEL_NAME }}
         run: |

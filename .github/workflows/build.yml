@@ -95,13 +95,6 @@ jobs:
 
           echo "Clone kernel source => ($KERNEL_REPO)"
 
-      - name: "Patching KernelSu-Susfs"
-        run: |
-          patch -p1 < $OUT_DIR/$KERNEL_NAME/KernelSu/10_enable_susfs_for_ksu.patch
-          patch -p1 < $OUT_DIR/$KERNEL_NAME/50_add_susfs_in_kernel.patch
-
-          echo "Patching KernelSu-Susfs => ($KERNEL_REPO)"
-
       - name: "Get toolchains"
         env:
           toolchains: "${{ toJSON(matrix.repos.toolchains) }}"

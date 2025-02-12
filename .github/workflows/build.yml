@@ -148,13 +148,13 @@ jobs:
         run: |        
           echo "Adding KernelSU..."
           curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next-susfs/kernel/setup.sh" | bash -s next-susfs
-          [ -d "KernelSU" ] && (cd KernelSU/kernel)
+          [ -d "KernelSu-Next" ] && (cd KernelSu-Next/kernel)
           sed -i 's/ccflags-y += -DKSU_VERSION=16/ccflags-y += -DKSU_VERSION=12000/' ./Makefile
 
       - name: "Apply SUSFS Patches"
         working-directory: ${{ env.KERNEL_NAME }}
         run: |
-          [ -d "KernelSU" ] && (cd KernelSU && patch -p1 < 10_enable_susfs_for_ksu.patch || true)
+          [ -d "KernelSu-Next" ] && (cd KernelSu-Next && patch -p1 < 10_enable_susfs_for_ksu.patch || true)
           patch -p1 < 50_add_susfs_in_kernel-4.9.patch || true
      
       - name: "Add SUSFS Config"
@@ -178,7 +178,7 @@ jobs:
           ARCH: ${{ steps.generate-args.outputs.ARCH }}
         if: ${{ env.WITH_KERNELSU == 'true' }}
         run: |
-          [ -d "KernelSU" ] && rm -rf "KernelSU"
+          [ -d "KernelSu-Next" ] && rm -rf "KernelSu-Next"
           [ -d "drivers/kernelsu" ] && rm -rf "drivers/kernelsu"
           curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/${{ env.KERNEL_SU_NEXT_BRANCH }}/kernel/setup.sh" | bash -s ${{ env.KERNEL_SU_NEXT_BRANCH }}
           CONFIG_FILE="arch/${ARCH}/configs/${DEFCONFIG_NAME}"

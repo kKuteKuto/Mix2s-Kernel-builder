@@ -146,7 +146,7 @@ jobs:
       - name: "Apply SUSFS Patches"
         working-directory: ${{ env.KERNEL_NAME }}
         run: |
-          [ -d "KernelSu-Next" ] && (cd KernelSu-Next && patch -p1 < 10_enable_susfs_for_ksu.patch || true)
+          [ -d "KernelSu-Next" ] && (cd KernelSu-Next && patch -p1 --forward < 10_enable_susfs_for_ksu.patch || true)
           patch -p1 < 50_add_susfs_in_kernel-4.9.patch || true
      
       - name: "Add SUSFS Config"

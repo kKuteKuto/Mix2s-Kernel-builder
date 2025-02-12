@@ -142,11 +142,26 @@ jobs:
           done
           echo "args=$args" >> $GITHUB_OUTPUT
           echo "ARCH=$ARCH" >> $GITHUB_OUTPUT
+
+      - name: "Update KernelSU"
+        working-directory: ${{ env.KERNEL_NAME }}
+        env:
+          ARCH: ${{ steps.generate-args.outputs.ARCH }}
+        if: ${{ env.WITH_KERNELSU == 'true' }}
+        run: |
+          [ -d "KernelSu" ] && rm -rf "KernelSu"
+          [ -d "drivers/kernelsu" ] && rm -rf "drivers/kernelsu"
+          curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v0.9.5
+          CONFIG_FILE="arch/${ARCH}/configs/${DEFCONFIG_NAME}"
+          for cfg in "CONFIG_KPROBES=y" "CONFIG_HAVE_KPROBES=y" "CONFIG_KPROBE_EVENTS=y"; do
+            echo "$cfg" | sudo tee -a "$CONFIG_FILE"
+          done
+          cat "$CONFIG_FILE"
           
       - name: "Apply SUSFS Patches"
         working-directory: ${{ env.KERNEL_NAME }}
         run: |
-          [ -d "KernelSu-Next" ] && (cd KernelSu-Next && patch -p1 --forward < 10_enable_susfs_for_ksu.patch || true)
+          [ -d "KernelSu" ] && (cd KernelSu && patch -p1 --forward < 10_enable_susfs_for_ksu.patch || true)
           patch -p1 < 50_add_susfs_in_kernel-4.9.patch || true
      
       - name: "Add SUSFS Config"
@@ -163,21 +178,6 @@ jobs:
                      "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y" "CONFIG_KSU_SUSFS_SUS_SU=y" "CONFIG_TMPFS_XATTR=y"; do
             echo "$cfg" | sudo tee -a "$CONFIG_FILE"
           done
-
-      - name: "Update KernelSU"
-        working-directory: ${{ env.KERNEL_NAME }}
-        env:
-          ARCH: ${{ steps.generate-args.outputs.ARCH }}
-        if: ${{ env.WITH_KERNELSU == 'true' }}
-        run: |
-          [ -d "KernelSu" ] && rm -rf "KernelSu"
-          [ -d "drivers/kernelsu" ] && rm -rf "drivers/kernelsu"
-          curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/${{ env.KERNEL_SU_NEXT_BRANCH }}/kernel/setup.sh" | bash -s
-          CONFIG_FILE="arch/${ARCH}/configs/${DEFCONFIG_NAME}"
-          for cfg in "CONFIG_KPROBES=y" "CONFIG_HAVE_KPROBES=y" "CONFIG_KPROBE_EVENTS=y"; do
-            echo "$cfg" | sudo tee -a "$CONFIG_FILE"
-          done
-          cat "$CONFIG_FILE"
 
       - name: "Make defconfig"
         working-directory: ${{ env.KERNEL_NAME }}

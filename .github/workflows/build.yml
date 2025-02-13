@@ -2,228 +2,303 @@ name: "Build kernels"
 
 env:
   OUT_DIR: "${{ github.workspace }}/out"
-  KERNEL_SU_NEXT_BRANCH: "next"
-  SUSFS_BRANCH: "kernel-4.9"
 
 on:
   workflow_dispatch:
 
 jobs:
   Set-repos:
-    name: "Parse repos.json and Set Build Date"
+    name: "Parse repos.json"
     runs-on: ubuntu-latest
     outputs:
-      repos: ${{ steps.matrix.outputs.repos }}
-      builddate: ${{ steps.builddate.outputs.builddate }}
+      repos: ${{ steps.generate-matrix.outputs.repos }}
+      builddate: ${{ steps.generate-builddate.outputs.builddate }}
     steps:
-      - uses: actions/checkout@v3
+      - name: "Checkout"
+        uses: actions/checkout@v3
 
-      - id: matrix
-        name: "Generate Matrix from repos.json"
+      - name: "Generate Matrix"
+        id: generate-matrix
         run: |
           echo "repos<<EOF" >> $GITHUB_OUTPUT
           jq -s '[.[][]]' repos/repos*.json >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-
-      - id: builddate
-        name: "Set Build Date"
+      - name: "Set builddate"
+        id: generate-builddate
         run: echo "builddate=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
 
   Build-Kernel:
-    name: "Build kernel - ${{ matrix.repos.kernelSource.name }}"
+    name: "Build kernel"
     runs-on: ubuntu-latest
-    needs: [Set-repos]
+    needs:
+      - Set-repos
     strategy:
-      matrix:
-        repos: ${{ fromJSON(needs.Set-repos.outputs.repos) }}
       max-parallel: 4
       fail-fast: false
+      matrix:
+        repos: ${{ fromJSON(needs.Set-repos.outputs.repos) }}
     env:
       WORKSPACE: ${{ github.workspace }}
-      BUILDDATE: "${{ needs.Set-repos.outputs.builddate }}"
+
+      builddate: "${{ needs.Set-repos.outputs.builddate }}"
+
       KERNEL_NAME: ${{ matrix.repos.kernelSource.name }}
       KERNEL_REPO: ${{ matrix.repos.kernelSource.repo }}
       KERNEL_BRANCH: ${{ matrix.repos.kernelSource.branch }}
       KERNEL_DEVICE: ${{ matrix.repos.kernelSource.device }}
-      DEFCONFIG_NAME: ${{ matrix.repos.kernelSource.defconfig }}
-      WITH_KERNELSU: ${{ matrix.repos.withKernelSU }}
-      CCACHE_ENABLED: ${{ matrix.repos.ccache }}
-      USE_ANYKERNEL: ${{ matrix.repos.AnyKernel3.use }}
-      RELEASE_ENABLED: ${{ matrix.repos.AnyKernel3.release }}
-      ANYKERNEL_PARAMS: ${{ toJSON(matrix.repos.AnyKernel3) }}
-    steps:
-      - name: "Install Prerequisites"
-        run: |
-          sudo apt-get update && sudo apt-get install -y --no-install-recommends \
-            build-essential bc gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi \
-            libssl-dev libfl-dev curl git ftp lftp wget libarchive-tools \
-            ccache python3 python3-dev zip unzip tar gzip bzip2 rar unrar
 
-      - name: "Create ccache Key"
-        if: ${{ env.CCACHE_ENABLED == 'true' }}
+      DEFCONFIG_NAME: ${{ matrix.repos.kernelSource.defconfig }}
+
+      withKernelSU: ${{ matrix.repos.withKernelSU }}
+      ccache: ${{ matrix.repos.ccache }}
+      useAnykernel: ${{ matrix.repos.AnyKernel3.use }}
+      release: ${{ matrix.repos.AnyKernel3.release }}
+    steps:
+      - name: "Install prerequisites"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi libssl-dev libfl-dev
+          sudo apt-get install -y curl git ftp lftp wget libarchive-tools ccache python3 python3-dev
+          sudo apt-get install -y zip unzip tar gzip bzip2 rar unrar
+
+      - name: "Create cache key from `repos`"
+        if: ${{ env.ccache == 'true' }}
         id: ccache_key
         run: |
           ccache -o compression=false -o cache_dir=$HOME/.ccache
           echo "CACHE_KEY=$(echo -n '${{ toJSON(matrix.repos) }}' | base64 -w 0 | cut -c -48)" >> $GITHUB_OUTPUT
 
-      - name: "Cache ccache Files"
-        if: ${{ env.CCACHE_ENABLED == 'true' }}
-        uses: actions/cache@v3
+      - name: "Cache ccache files"
+        if: ${{ env.ccache == 'true' }}
+        uses: actions/cache@v4
         with:
           path: |
             ~/.ccache
             ${{ env.OUT_DIR }}
-          key: ccache-${{ env.KERNEL_NAME }}-${{ steps.ccache_key.outputs.CACHE_KEY }}-${{ env.BUILDDATE }}
+          key: ccache-${{ env.KERNEL_NAME }}-${{ steps.ccache_key.outputs.CACHE_KEY }}-${{ env.builddate }}
+          restore-keys: |
+            ccache-${{ env.KERNEL_NAME }}-${{ steps.ccache_key.outputs.CACHE_KEY }}-${{ env.builddate }}
 
-      - name: "Setup AnyKernel3"
+      - name: "Setup Anykernel3"
+        env:
+          params: "${{ toJSON(matrix.repos.AnyKernel3) }}"
         run: |
-          ANYKERNEL_REPO=$(echo "$ANYKERNEL_PARAMS" | jq -r ".repo")
-          ANYKERNEL_BRANCH=$(echo "$ANYKERNEL_PARAMS" | jq -r ".branch")
-          git clone --recursive --depth=1 -j $(nproc) --branch "$ANYKERNEL_BRANCH" "$ANYKERNEL_REPO" AnyKernel3
-          git clone https://gitlab.com/simonpunk/susfs4ksu.git -b "${{ env.SUSFS_BRANCH }}"
+          ANYKERNEL_REPO=$(echo $params | jq -r ".repo")
+          ANYKERNEL_BRANCH=$(echo $params | jq -r ".branch")
+          git clone --recursive --depth=1 -j $(nproc) --branch $ANYKERNEL_BRANCH $ANYKERNEL_REPO AnyKernel3
 
-      - name: "Clone Kernel Source"
+          echo "Setup Anykernel3 => ($ANYKERNEL_REPO)"
+
+      - name: "Clone kernel source => (${{ env.KERNEL_REPO }})"
         run: |
-          git clone --recursive --depth=1 -j $(nproc) --branch "$KERNEL_BRANCH" "$KERNEL_REPO" "$KERNEL_NAME"
+          git clone --recursive --depth=1 -j $(nproc) --branch $KERNEL_BRANCH $KERNEL_REPO $KERNEL_NAME
+
+          echo "Clone kernel source => ($KERNEL_REPO)"
 
       - name: "Get toolchains"
         env:
           toolchains: "${{ toJSON(matrix.repos.toolchains) }}"
         run: |
-          num=$(echo $toolchains | jq 'length')
-          for i in $(seq 0 $((num-1))); do
-            name=$(echo $toolchains | jq -r ".[$i].name")
-            repo=$(echo $toolchains | jq -r ".[$i].repo")
-            branch=$(echo $toolchains | jq -r ".[$i].branch")
-            url=$(echo $toolchains | jq -r ".[$i].url")
-            if [ -z "$url" ] || [ "$url" = "null" ]; then
-              git clone --recursive --depth=1 -j $(nproc) --branch $branch $repo $name
+          toolchains_num="$(echo $toolchains | jq 'length')"
+          echo "There is $toolchains_num defined toolchains."
+          for ((i=0;i<toolchains_num;i++)); do
+            toolchain_name=$(echo $toolchains | jq -r ".[$i].name")
+            # Github
+            toolchain_repo=$(echo $toolchains | jq -r ".[$i].repo")
+            toolchain_branch=$(echo $toolchains | jq -r ".[$i].branch")
+            # From archive
+            toolchain_url=$(echo $toolchains | jq -r ".[$i].url")
+            
+            echo $toolchain_url
+            if [ -z "${toolchain_url:-}" ] || [ "$toolchain_url" = "null" ];  then
+              git clone --recursive --depth=1 -j $(nproc) --branch $toolchain_branch $toolchain_repo $toolchain_name
+              echo "Clone $toolchain_name => ($toolchain_repo)"
             else
-              wget "$url"
-              file="${url##*/}"
-              mkdir -p $name
-              case "$file" in
-                *.zip)    unzip -d $name "$file" ;;
-                *.tar)    tar xvf "$file" -C $name ;;
-                *.tar.gz) tar zxvf "$file" -C $name ;;
-                *.rar)    unrar x "$file" $name ;;
-                *)        echo "unknown file type: $file" ;;
+              wget "$toolchain_url"
+              filename="${toolchain_url##*/}"
+              mkdir -p $toolchain_name
+              case "$filename" in
+                *.zip)
+                  unzip -d $toolchain_name "$filename"
+                  ;;
+                *.tar)
+                  tar xvf "$filename" -C $toolchain_name
+                  ;;
+                *.tar.gz)
+                  tar zxvf "$filename" -C $toolchain_name
+                  ;;
+                *.rar)
+                  unrar x "$filename" $toolchain_name
+                  ;;
+                *)
+                  echo "unknown file type: $filename"
+                  ;;
               esac
-              rm $file
+              rm $filename
             fi
-            jq -r ".[$i].binPath[]" <<< "$toolchains" | while read -r bp; do
-              echo "$WORKSPACE/$name/$bp" >> $GITHUB_PATH
+
+            jq -r ".[$i].binPath[] | tostring" <<< "$toolchains" | while read -r bin_path; do
+              echo "$WORKSPACE/$toolchain_name/$bin_path" >> $GITHUB_PATH
             done
           done
 
-      - name: "Set Build Arguments"
+      - name: "Set args"
         id: generate-args
         env:
-          PARAMS: "${{ toJSON(matrix.repos.params) }}"
+          params: "${{ toJSON(matrix.repos.params) }}"
+          THREAD: $(nproc --all)
         run: |
-          THREAD=$(nproc --all)
-          ARCH=$(echo "$PARAMS" | jq -r ".ARCH")
-          CC=$(echo "$PARAMS" | jq -r ".CC")
-          args="-j${THREAD} O=${OUT_DIR} ARCH=$ARCH"
+          echo "PATH Variable: $PATH"
+
+          ARCH=$(echo $params | jq -r ".ARCH")
+          CC=$(echo $params | jq -r ".CC")
+
+          args="-j${{ env.THREAD }}"
+          if [ -n "${{ env.OUT_DIR }}" ]; then
+            mkdir -p ${{ env.OUT_DIR }} && args="$args O=${{ env.OUT_DIR }}"
+          fi
+          if [ -n "$ARCH" ]; then
+            args="$args ARCH=$ARCH"
+          fi
           if [ -n "$CC" ]; then
-            [[ "$CC" == */* ]] && CC="${WORKSPACE}/$CC"
-            if [ "${CCACHE_ENABLED}" = "true" ]; then
+
+            if [[ "$CC" == *"/"* ]]; then
+              CC=${{ env.WORKSPACE }}/$CC
+            fi
+
+            if [ ${{ env.ccache }} = true ]; then
               args="$args CC=\"ccache $CC\""
             else
               args="$args CC=$CC"
             fi
           fi
-          mapfile -t cmds < <(jq -r '.externalCommand | to_entries[] | "\(.key)=\(.value)"' <<< "$PARAMS")
-          for cmd in "${cmds[@]}"; do
-            key=${cmd%%=*}
-            val=${cmd#*=}
-            [[ "$val" == */* ]] && val="${WORKSPACE}/$val"
-            args="$args $key=$val"
-          done
-          echo "args=$args" >> $GITHUB_OUTPUT
+          while read -r externalCommand; do
+            key=$(echo "$externalCommand" | cut -d= -f1)
+            value=$(echo "$externalCommand" | cut -d= -f2)
+            if [[ "$value" == *"/"* ]]; then
+              value="${{ env.WORKSPACE }}/$value"
+            fi
+            args="$args $key=$value"
+          done < <(jq -r '.externalCommand | to_entries[] | "\(.key)=\(.value)"' <<< "$params")
+        
+          echo "$args"
           echo "ARCH=$ARCH" >> $GITHUB_OUTPUT
+          echo "args=$args" >> $GITHUB_OUTPUT
 
       - name: "Update KernelSU"
         working-directory: ${{ env.KERNEL_NAME }}
         env:
-          ARCH: ${{ steps.generate-args.outputs.ARCH }}
-        if: ${{ env.WITH_KERNELSU == 'true' }}
+          arch: ${{ steps.generate-args.outputs.ARCH }}
+        if: ${{ env.withKernelSU == 'true' }}
         run: |
-          [ -d "KernelSu" ] && rm -rf "KernelSu"
-          [ -d "drivers/kernelsu" ] && rm -rf "drivers/kernelsu"
+          if [ -d "./KernelSU" ]; then
+            rm -rf "./KernelSU"
+          fi
+          if [ -d "./drivers/kernelsu" ]; then
+            rm -rf "./drivers/kernelsu"
+          fi
+
           curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v0.9.5
-          CONFIG_FILE="arch/${ARCH}/configs/${DEFCONFIG_NAME}"
-          for cfg in "CONFIG_KPROBES=y" "CONFIG_HAVE_KPROBES=y" "CONFIG_KPROBE_EVENTS=y"; do
-            echo "$cfg" | sudo tee -a "$CONFIG_FILE"
-          done
-          cat "$CONFIG_FILE"
-          
-      - name: "Apply SUSFS Patches"
-        working-directory: ${{ env.KERNEL_NAME }}
-        run: |
-          [ -d "KernelSu" ] && (cd KernelSu && patch -p1 --forward < 10_enable_susfs_for_ksu.patch || true)
-          patch -p1 < 50_add_susfs_in_kernel-4.9.patch || true
-     
-      - name: "Add SUSFS Config"
-        working-directory: ${{ env.KERNEL_NAME }}
-        run: |
-          CONFIG_FILE="arch/${{ steps.generate-args.outputs.ARCH }}/configs/${DEFCONFIG_NAME}"
-          for cfg in "CONFIG_KSU=y" "CONFIG_KSU_SUSFS=y" "CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y" \
-                     "CONFIG_KSU_SUSFS_SUS_PATH=y" "CONFIG_KSU_SUSFS_SUS_MOUNT=y" \
-                     "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y" "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y" \
-                     "CONFIG_KSU_SUSFS_SUS_KSTAT=y" "CONFIG_KSU_SUSFS_SUS_OVERLAYFS=y" \
-                     "CONFIG_KSU_SUSFS_TRY_UMOUNT=y" "CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT=y" \
-                     "CONFIG_KSU_SUSFS_SPOOF_UNAME=y" "CONFIG_KSU_SUSFS_ENABLE_LOG=y" \
-                     "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y" "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y" \
-                     "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y" "CONFIG_KSU_SUSFS_SUS_SU=y" "CONFIG_TMPFS_XATTR=y"; do
-            echo "$cfg" | sudo tee -a "$CONFIG_FILE"
-          done
+
+          echo -e "CONFIG_KPROBES=y" >> arch/${{ env.arch }}/configs/${{ env.DEFCONFIG_NAME }}
+          echo -e "CONFIG_HAVE_KPROBES=y" >> arch/${{ env.arch }}/configs/${{ env.DEFCONFIG_NAME }}
+          echo -e "CONFIG_KPROBE_EVENTS=y" >> arch/${{ env.arch }}/configs/${{ env.DEFCONFIG_NAME }}
+
+          cat arch/${{ env.arch }}/configs/${{ env.DEFCONFIG_NAME }}
 
       - name: "Make defconfig"
         working-directory: ${{ env.KERNEL_NAME }}
         env:
-          ARGS: ${{ steps.generate-args.outputs.args }}
-        run: make ${ARGS} ${DEFCONFIG_NAME}
+          args: ${{ steps.generate-args.outputs.args }}
+          arch: ${{ steps.generate-args.outputs.ARCH }}
+        run: |
+          echo "PATH Variable: $PATH"
+          make ${{ env.args }} ${{ env.DEFCONFIG_NAME }}
 
-      - name: "Build Kernel"
+      - name: "Build kernel"
         working-directory: ${{ env.KERNEL_NAME }}
         env:
-          ARGS: ${{ steps.generate-args.outputs.args }}
-        run: make ${ARGS}
-
-      - name: "Prepare AnyKernel3"
-        if: ${{ env.USE_ANYKERNEL == 'true' }}
+          args: ${{ steps.generate-args.outputs.args }}
         run: |
-          mkdir -p AnyKernel3/files
-          cp "${{ env.OUT_DIR }}/arch/${{ steps.generate-args.outputs.ARCH }}/boot/Image" AnyKernel3/
-          cp "${{ env.OUT_DIR }}/arch/${{ steps.generate-args.outputs.ARCH }}/boot/Image.gz-dtb" AnyKernel3/
-          cp "${{ env.OUT_DIR }}/arch/${{ steps.generate-args.outputs.ARCH }}/boot/dtbo" AnyKernel3/
-          cp "${{ env.OUT_DIR }}/arch/${{ steps.generate-args.outputs.ARCH }}/boot/dtbo.img" AnyKernel3/
+          echo "PATH Variable: $PATH"
+          make ${{ env.args }}
 
-      - name: "Pack AnyKernel3.zip"
-        if: ${{ env.USE_ANYKERNEL == 'true' }}
-        run: |
-          cd AnyKernel3/
-          zip -q -r "../${{ env.KERNEL_DEVICE }}-${{ env.KERNEL_NAME }}_${{ env.BUILDDATE }}.zip" *
-
-      - name: "Upload Artifacts"
+      - name: "Upload Image"
         uses: actions/upload-artifact@v4
+        env:
+          arch: ${{ steps.generate-args.outputs.ARCH }}
         with:
-          name: "${{ env.KERNEL_DEVICE }}-${{ env.KERNEL_NAME }}_${{ env.BUILDDATE }}"
-          path: |
-            ${{ env.OUT_DIR }}/arch/${{ steps.generate-args.outputs.ARCH }}/boot/Image
-            ${{ env.OUT_DIR }}/arch/${{ steps.generate-args.outputs.ARCH }}/boot/Image.gz-dtb
-            ${{ env.OUT_DIR }}/arch/${{ steps.generate-args.outputs.ARCH }}/boot/dtb
-            ${{ env.OUT_DIR }}/arch/${{ steps.generate-args.outputs.ARCH }}/boot/dtbo.img
-            ${{ env.KERNEL_DEVICE }}-${{ env.KERNEL_NAME }}_${{ env.BUILDDATE }}.zip
+          name: Image-${{ env.KERNEL_DEVICE }}-${{ env.KERNEL_NAME }}-${{ env.builddate }}
+          path: ${{ env.OUT_DIR }}/arch/${{ env.arch }}/boot/Image
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: "Create GitHub Release"
-        if: ${{ env.USE_ANYKERNEL == 'true' && env.RELEASE_ENABLED == 'true' }}
-        uses: softprops/action-gh-release@v1
+      - name: "Upload Image.gz-dtb"
+        uses: actions/upload-artifact@v4
+        env:
+          arch: ${{ steps.generate-args.outputs.ARCH }}
         with:
-          tag_name: v${{ env.BUILDDATE }}.${{ github.run_number }}
-          files: "${{ env.WORKSPACE }}/${{ env.KERNEL_DEVICE }}-${{ env.KERNEL_NAME }}_${{ env.BUILDDATE }}.zip"
-          generate_release_notes: true
+          name: Image.gz-${{ env.KERNEL_DEVICE }}-${{ env.KERNEL_NAME }}-${{ env.builddate }}
+          path: ${{ env.OUT_DIR }}/arch/${{ env.arch }}/boot/Image.gz-dtb
+          if-no-files-found: ignore
+          retention-days: 7
 
+      - name: "Upload dtb"
+        uses: actions/upload-artifact@v4
+        env:
+          arch: ${{ steps.generate-args.outputs.ARCH }}
+        with:
+          name: dtb-${{ env.KERNEL_DEVICE }}-${{ env.KERNEL_NAME }}-${{ env.builddate }}
+          path: ${{ env.OUT_DIR }}/arch/${{ env.arch }}/boot/dtb
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: "Upload dtbo.img"
+        uses: actions/upload-artifact@v4
+        env:
+          arch: ${{ steps.generate-args.outputs.ARCH }}
+        with:
+          name: dtbo.img-${{ env.KERNEL_DEVICE }}-${{ env.KERNEL_NAME }}-${{ env.builddate }}
+          path: ${{ env.OUT_DIR }}/arch/${{ env.arch }}/boot/dtbo.img
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: "Pack AnyKernel3.zip"
+        if: ${{ env.useAnykernel == 'true' }}
+        env:
+          arch: ${{ steps.generate-args.outputs.ARCH }}
+          anykernel: "${{ env.WORKSPACE }}/${{ env.KERNEL_DEVICE }}-${{ env.KERNEL_NAME }}_${{ env.builddate }}"
+        run: |
+          ls -al
+
+          if [ -e "${{ env.OUT_DIR }}/arch/${{ env.arch }}/boot/Image" ]; then
+            cp -f ${{ env.OUT_DIR }}/arch/${{ env.arch }}/boot/Image ./AnyKernel3/
+          fi
+          if [ -e "${{ env.OUT_DIR }}/arch/${{ env.arch }}/boot/Image.gz-dtb" ]; then
+            cp -f ${{ env.OUT_DIR }}/arch/${{ env.arch }}/boot/Image.gz-dtb ./AnyKernel3/
+          fi
+          if [ -e "${{ env.OUT_DIR }}/arch/${{ env.arch }}/boot/dtbo" ]; then
+            cp -f ${{ env.OUT_DIR }}/arch/${{ env.arch }}/boot/dtbo ./AnyKernel3/
+          fi
+          if [ -e "${{ env.OUT_DIR }}/arch/${{ env.arch }}/boot/dtbo.img" ]; then
+            cp -f ${{ env.OUT_DIR }}/arch/${{ env.arch }}/boot/dtbo.img ./AnyKernel3/
+          fi
+
+          cd AnyKernel3/
+          zip -q -r "${{ env.anykernel }}.zip" *
+
+      - name: "Upload AnyKernel3 image => (${{ env.builddate }})"
+        uses: actions/upload-artifact@v4
+        if: ${{ env.useAnykernel == 'true' }}
+        with:
+          name: "${{ env.KERNEL_DEVICE }}-${{ env.KERNEL_NAME }}_${{ env.builddate }}"
+          path: AnyKernel3/*
+
+      - name: Create GitHub Release => (${{ env.builddate }})
+        continue-on-error: true
+        uses: softprops/action-gh-release@v1
+        if: ${{ env.useAnykernel == 'true' && env.release == 'true' }}
+        with:
+          tag_name: v${{ env.builddate }}.${{ github.run_number }}
+          files: "${{ env.WORKSPACE }}/${{ env.KERNEL_DEVICE }}-${{ env.KERNEL_NAME }}_${{ env.builddate }}.zip"
+          generate_release_notes: true
